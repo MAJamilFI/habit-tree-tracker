@@ -16,10 +16,9 @@ import { useHabits } from "../context/HabitContext";
 // Local JSON file (works now, before GitHub)
 import localSuggestions from "../../habit-suggestions.json";
 
-// After you push to GitHub, set this to your raw URL (later step)
-// Example:
-// https://raw.githubusercontent.com/MAJamilFI/habit-tree-tracker/main/habit-suggestions.json
-const GITHUB_RAW_URL = "";
+
+const GITHUB_RAW_URL ="https://raw.githubusercontent.com/MAJamilFI/habit-tree-tracker/main/habit-suggestions.json";
+
 
 function normalizeSuggestions(list) {
   if (!Array.isArray(list)) return [];
