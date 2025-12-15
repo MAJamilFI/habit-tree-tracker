@@ -13,42 +13,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useHabits } from "../context/HabitContext";
 
-// Option B: Put a JSON file in your GitHub repo and use the RAW URL here.
-// Example JSON format (array of strings):
-// ["Drink water","Walk 20 minutes","Read 10 minutes"]
-const SUGGESTIONS_URL =
-  "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/habit-suggestions.json";
+// Local JSON file (works now, before GitHub)
+import localSuggestions from "../../habit-suggestions.json";
 
-const FALLBACK_SUGGESTIONS = [
-  "Drink water",
-  "Walk 20 minutes",
-  "Read 10 minutes",
-  "Stretch 5 minutes",
-  "Meditate 5 minutes",
-  "Sleep before 23:00",
-  "Practice a language",
-  "Eat a fruit",
-  "Write 3 lines journal",
-  "No sugary drinks today",
-];
+// After you push to GitHub, set this to your raw URL (later step)
+// Example:
+// https://raw.githubusercontent.com/MAJamilFI/habit-tree-tracker/main/habit-suggestions.json
+const GITHUB_RAW_URL = "";
 
-function normalizeSuggestions(json) {
-  if (!json) return [];
-  if (Array.isArray(json)) {
-    return json
-      .map((x) => {
-        if (typeof x === "string") return x;
-        if (typeof x === "object" && x && typeof x.name === "string") return x.name;
-        return "";
-      })
-      .map((s) => String(s).trim())
-      .filter(Boolean);
-  }
-  // if it’s { suggestions: [...] }
-  if (typeof json === "object" && json && Array.isArray(json.suggestions)) {
-    return normalizeSuggestions(json.suggestions);
-  }
-  return [];
+function normalizeSuggestions(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((x) => String(x || "").trim())
+    .filter(Boolean)
+    .slice(0, 30);
 }
 
 export default function HabitFormScreen({ navigation, route }) {
@@ -66,9 +44,9 @@ export default function HabitFormScreen({ navigation, route }) {
   const [reminderTime, setReminderTime] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [suggestions, setSuggestions] = useState([]);
+  const [suggestions, setSuggestions] = useState(normalizeSuggestions(localSuggestions));
   const [loadingSug, setLoadingSug] = useState(false);
-  const [suggestionNote, setSuggestionNote] = useState("");
+  const [note, setNote] = useState("Using local suggestions (no internet needed).");
 
   useEffect(() => {
     if (existing) {
@@ -100,26 +78,27 @@ export default function HabitFormScreen({ navigation, route }) {
     }
   }
 
-  async function loadSuggestions() {
-    setLoadingSug(true);
-    setSuggestionNote("");
-    setSuggestions([]);
+  async function loadFromGitHub() {
+    if (!GITHUB_RAW_URL) {
+      setNote("GitHub URL not set yet. We will add it after pushing to GitHub.");
+      return;
+    }
 
+    setLoadingSug(true);
     try {
-      const res = await fetch(SUGGESTIONS_URL);
+      const res = await fetch(GITHUB_RAW_URL);
       if (!res.ok) throw new Error("Bad response");
       const data = await res.json();
       const items = normalizeSuggestions(data);
 
-      if (items.length === 0) {
-        setSuggestions(FALLBACK_SUGGESTIONS);
-        setSuggestionNote("Could not read suggestion list. Using fallback suggestions.");
+      if (items.length > 0) {
+        setSuggestions(items);
+        setNote("Loaded suggestions from GitHub (API).");
       } else {
-        setSuggestions(items.slice(0, 20));
+        setNote("GitHub list was empty. Using local suggestions.");
       }
     } catch {
-      setSuggestions(FALLBACK_SUGGESTIONS);
-      setSuggestionNote("Could not load from API. Using fallback suggestions.");
+      setNote("Could not load from GitHub. Using local suggestions.");
     } finally {
       setLoadingSug(false);
     }
@@ -127,10 +106,7 @@ export default function HabitFormScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Card mode="elevated">
           <Card.Content>
             <Text variant="titleLarge">{editing ? "Edit habit" : "New habit"}</Text>
@@ -181,9 +157,9 @@ export default function HabitFormScreen({ navigation, route }) {
         <Card style={{ marginTop: 12 }} mode="elevated">
           <Card.Content>
             <View style={styles.sugHeader}>
-              <Text variant="titleMedium">Habit suggestions (from API)</Text>
-              <Button mode="text" onPress={loadSuggestions} disabled={loadingSug}>
-                {loadingSug ? "Loading…" : "Load"}
+              <Text variant="titleMedium">Habit suggestions</Text>
+              <Button mode="text" onPress={loadFromGitHub} disabled={loadingSug}>
+                {loadingSug ? "Loading…" : "Load from API"}
               </Button>
             </View>
 
@@ -191,11 +167,9 @@ export default function HabitFormScreen({ navigation, route }) {
               Tap a suggestion to fill the habit name.
             </Text>
 
-            {suggestionNote ? (
-              <Text variant="bodySmall" style={{ marginTop: 6 }}>
-                {suggestionNote}
-              </Text>
-            ) : null}
+            <Text variant="bodySmall" style={{ marginTop: 6 }}>
+              {note}
+            </Text>
 
             {loadingSug ? <ActivityIndicator style={{ marginTop: 10 }} /> : null}
 
@@ -205,12 +179,6 @@ export default function HabitFormScreen({ navigation, route }) {
                   {s}
                 </Chip>
               ))}
-
-              {!loadingSug && suggestions.length === 0 ? (
-                <Text variant="bodySmall" style={{ marginTop: 10 }}>
-                  Press Load to fetch suggestions from the API.
-                </Text>
-              ) : null}
             </View>
           </Card.Content>
         </Card>
@@ -222,15 +190,9 @@ export default function HabitFormScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  scroll: { padding: 16 },
-  input: { marginTop: 10 },
-  row: { flexDirection: "row", gap: 12, marginTop: 12 },
-  sugHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+  input: { marginTop: 5 },
+  row: { flexDirection: "row", gap: 12, marginTop: 5},
+  sugHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   chip: { marginRight: 6, marginBottom: 6 },
 });
